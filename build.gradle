@@ -34,6 +34,10 @@ dependencies {
     compileOnly 'org.projectlombok:lombok' // 롬복
 }
 
+jar {
+    enabled = false
+}
+
 test {
     useJUnitPlatform()
 }
