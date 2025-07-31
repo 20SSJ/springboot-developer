@@ -1,6 +1,7 @@
 package me.sangjunsuh.springbootdeveloper.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import me.sangjunsuh.springbootdeveloper.config.error.ErrorCode;
 import me.sangjunsuh.springbootdeveloper.domain.Article;
 import me.sangjunsuh.springbootdeveloper.domain.User;
 import me.sangjunsuh.springbootdeveloper.dto.AddArticleRequest;
@@ -29,6 +30,7 @@ import java.util.List;
 
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -54,7 +56,7 @@ class BlogApiControllerTest {
     User user;
 
     @BeforeEach // 테스트 실행 전 실행하는 메서드
-    public void mockMvcSetUp(){
+    public void mockMvcSetUp() {
         this.mockMvc = MockMvcBuilders.webAppContextSetup(context)
                 .build();
         blogRepository.deleteAll();
@@ -148,7 +150,7 @@ class BlogApiControllerTest {
 
         // when
         mockMvc.perform(delete(url, savedArticle.getId()))
-                        .andExpect(status().isOk());
+                .andExpect(status().isOk());
 
         // then
         List<Article> articles = blogRepository.findAll();
@@ -170,7 +172,7 @@ class BlogApiControllerTest {
 
         // when
         ResultActions result = mockMvc.perform(put(url, savedArticle.getId())
-                        .contentType(MediaType.APPLICATION_JSON_VALUE)
+                .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content(objectMapper.writeValueAsString(request)));
 
         // then
@@ -217,6 +219,7 @@ class BlogApiControllerTest {
     @DisplayName("addArticle: 아티클을 추가할 때 title이 10자를 넘으면 실패한다.")
     @Test
     public void addArticleSizeValidation() throws Exception {
+        // given
         Faker faker = new Faker();
 
         final String url = "/api/articles";
@@ -229,11 +232,47 @@ class BlogApiControllerTest {
         Principal principal = Mockito.mock(Principal.class);
         Mockito.when(principal.getName()).thenReturn("username");
 
+        // when
         ResultActions result = mockMvc.perform(post(url)
-                        .contentType(MediaType.APPLICATION_JSON_VALUE)
-                        .principal(principal)
+                .contentType(MediaType.APPLICATION_JSON_VALUE)
+                .principal(principal)
                 .content(requestBody));
 
+        // then
         result.andExpect(status().isBadRequest());
+    }
+
+    @DisplayName("findArticle: 잘못된 HTTP 메서드로 아티클을 조회하려고 하면 조회에 실패한다.")
+    @Test
+    public void invalidHttpMethod() throws Exception {
+        //given
+        final String url = "/api/articles/{id}";
+
+        // when
+        final ResultActions resultActions = mockMvc.perform(post(url, 1));
+
+        // then
+        resultActions
+                .andDo(print())
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.message").value(ErrorCode.METHOD_NOT_ALLOWED.getMessage()));
+    }
+
+    @DisplayName("findArticle: 존재하지 않는 아티클을 조회하려고 하면 조회에 실패한다.")
+    @Test
+    public void findArticleInvalidArticle() throws Exception {
+        // given
+        final String url = "/api/articles/{id}";
+        final long invalidId = 1;
+
+        // when
+        final ResultActions resultActions = mockMvc.perform(get(url, invalidId));
+
+        // then
+        resultActions
+                .andDo(print())
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value(ErrorCode.ARTICLE_NOT_FOUND.getMessage()))
+                .andExpect(jsonPath("$.code").value(ErrorCode.ARTICLE_NOT_FOUND.getCode()));
     }
 }
