@@ -4,9 +4,13 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import me.sangjunsuh.springbootdeveloper.config.error.exception.ArticleNotFoundException;
 import me.sangjunsuh.springbootdeveloper.domain.Article;
+import me.sangjunsuh.springbootdeveloper.domain.Comment;
 import me.sangjunsuh.springbootdeveloper.dto.AddArticleRequest;
+import me.sangjunsuh.springbootdeveloper.dto.AddCommentRequest;
 import me.sangjunsuh.springbootdeveloper.dto.UpdateArticleRequest;
+import me.sangjunsuh.springbootdeveloper.dto.UpdateCommentRequest;
 import me.sangjunsuh.springbootdeveloper.repository.BlogRepository;
+import me.sangjunsuh.springbootdeveloper.repository.CommentRepository;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
@@ -17,6 +21,7 @@ import java.util.List;
 public class BlogService {
 
     private final BlogRepository blogRepository;
+    private final CommentRepository commentRepository;
 
     // 블로그 글 추가 메서드
     public Article save(AddArticleRequest request, String userName) {
@@ -60,5 +65,25 @@ public class BlogService {
         if (!article.getAuthor().equals(username)) {
             throw new IllegalArgumentException("not authorized");
         }
+    }
+
+    public Comment addComment(AddCommentRequest request, String userName) {
+        Article article = blogRepository.findById(request.getArticleId())
+                .orElseThrow(() -> new IllegalArgumentException("Not found : " + request.getArticleId()));
+        return commentRepository.save(request.toEntity(userName, article));
+    }
+
+    public void deleteComment(long id) {
+        commentRepository.deleteById(id);
+    }
+
+    @Transactional
+    public Comment updateComment(long id, UpdateCommentRequest request) {
+        Comment comment = commentRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("not found: " + id));
+
+        comment.update(request.getContent());
+
+        return comment;
     }
 }

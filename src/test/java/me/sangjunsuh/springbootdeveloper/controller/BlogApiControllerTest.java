@@ -3,10 +3,14 @@ package me.sangjunsuh.springbootdeveloper.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import me.sangjunsuh.springbootdeveloper.config.error.ErrorCode;
 import me.sangjunsuh.springbootdeveloper.domain.Article;
+import me.sangjunsuh.springbootdeveloper.domain.Comment;
 import me.sangjunsuh.springbootdeveloper.domain.User;
 import me.sangjunsuh.springbootdeveloper.dto.AddArticleRequest;
+import me.sangjunsuh.springbootdeveloper.dto.AddCommentRequest;
 import me.sangjunsuh.springbootdeveloper.dto.UpdateArticleRequest;
+import me.sangjunsuh.springbootdeveloper.dto.UpdateCommentRequest;
 import me.sangjunsuh.springbootdeveloper.repository.BlogRepository;
+import me.sangjunsuh.springbootdeveloper.repository.CommentRepository;
 import me.sangjunsuh.springbootdeveloper.repository.UserRepository;
 import net.datafaker.Faker;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,6 +57,9 @@ class BlogApiControllerTest {
     @Autowired
     UserRepository userRepository;
 
+    @Autowired
+    CommentRepository commentRepository;
+
     User user;
 
     @BeforeEach // 테스트 실행 전 실행하는 메서드
@@ -60,6 +67,7 @@ class BlogApiControllerTest {
         this.mockMvc = MockMvcBuilders.webAppContextSetup(context)
                 .build();
         blogRepository.deleteAll();
+        commentRepository.deleteAll();
     }
 
     @BeforeEach
@@ -274,5 +282,86 @@ class BlogApiControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value(ErrorCode.ARTICLE_NOT_FOUND.getMessage()))
                 .andExpect(jsonPath("$.code").value(ErrorCode.ARTICLE_NOT_FOUND.getCode()));
+    }
+
+    @DisplayName("addComment: 댓글 추가에 성공한다.")
+    @Test
+    public void addComment() throws Exception {
+        // given
+        final String url = "/api/comments";
+
+        Article savedArticle = createDefaultArticle();
+        final Long articleId = savedArticle.getId();
+        final String content = "content";
+        final AddCommentRequest userRequest = new AddCommentRequest(articleId, content);
+
+        final String requestBody = objectMapper.writeValueAsString(userRequest);
+
+        Principal principal = Mockito.mock(Principal.class);
+        Mockito.when(principal.getName()).thenReturn("username");
+
+        // when
+        ResultActions result = mockMvc.perform(post(url)
+                .contentType(MediaType.APPLICATION_JSON_VALUE)
+                .principal(principal)
+                .content(requestBody));
+
+        // then
+        result.andExpect(status().isCreated());
+
+        List<Comment> comments = commentRepository.findAll();
+
+        assertThat(comments.size()).isEqualTo(1);
+        assertThat(comments.get(0).getArticle().getId()).isEqualTo(articleId);
+        assertThat(comments.get(0).getContent()).isEqualTo(content);
+    }
+
+    @DisplayName("deleteComment: 댓글 삭제에 성공한다.")
+    @Test
+    public void deleteComment() throws Exception {
+        // given
+        final String url = "/api/comments/{id}";
+        final String content = "content";
+
+        Comment savedComment = commentRepository.save(Comment.builder()
+                .content(content)
+                .build());
+
+        // when
+        mockMvc.perform(delete(url, savedComment.getId()))
+                .andExpect(status().isOk());
+
+        // then
+        List<Comment> comments = commentRepository.findAll();
+
+        assertThat(comments).isEmpty();
+    }
+
+    @DisplayName("updateComment: 블로그 댓글 수정에 성공한다.")
+    @Test
+    public void updateComment() throws Exception {
+        // given
+        final String url = "/api/comments/{id}";
+        final String content = "content";
+
+        Comment savedComment = commentRepository.save(Comment.builder()
+                .content(content)
+                .build());
+
+        final String newContent = "new content";
+
+        UpdateCommentRequest request = new UpdateCommentRequest(newContent);
+
+        // when
+        ResultActions result = mockMvc.perform(put(url, savedComment.getId())
+                .contentType(MediaType.APPLICATION_JSON_VALUE)
+                .content(objectMapper.writeValueAsString(request)));
+
+        // then
+        result.andExpect(status().isOk());
+
+        Comment comment = commentRepository.findById(savedComment.getId()).get();
+
+        assertThat(comment.getContent()).isEqualTo(newContent);
     }
 }
